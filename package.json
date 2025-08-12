@@ -1,0 +1,22 @@
+{
+  "name": "claude-like-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc",
+    "test": "echo \"No tests\""
+  },
+  "bin": {
+    "claude": "./dist/index.js"
+  },
+  "dependencies": {
+    "commander": "^11.0.0",
+    "diff": "^8.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.2"
+  }
+}
