@@ -18,6 +18,6 @@ export async function callTool(tool: McpTool, input: string): Promise<string> {
     body: JSON.stringify({ tool: tool.name, input })
   });
   if (!res.ok) throw new Error(`MCP call failed: ${res.status}`);
-  const data = await res.json();
+  const data: any = await res.json();
   return data.output ?? '';
 }

@@ -25,8 +25,9 @@ Within the CLI use slash commands:
 - `/summary [dir]` – show file and directory counts
 - `/diff <a> <b>` – view diff between two files
 - `/patch <file> <content>` – generate a patch against file
-- `/tools` – list MCP tools discovered from remote servers
-- `/call <tool> <input>` – invoke an MCP tool
+- `/tools` – list available LLM tools (local and MCP)
+- `/call <tool> <input>` – invoke a tool
+- `/help` – show command reference
 - `/exit` – quit the session
 
 Options:

@@ -5,6 +5,7 @@ import { chatOllama, listModels } from './ollama.js';
 import { readFile, writeFile, listTree, diffFiles, generatePatch, summarizeTree } from './tools/filesystem.js';
 import { runCommand, runInteractive, looksDangerous, RunningProcess } from './tools/shell.js';
 import { webSearch } from './tools/search.js';
+import { localTools, LocalTool } from './tools/llm.js';
 import { discoverTools, callTool, McpTool } from './mcp.js';
 import type { Message } from './types.js';
 
@@ -21,6 +22,29 @@ const opts = program.opts();
 const mcpServers: string[] = opts.mcp && opts.mcp.length ? opts.mcp : (process.env.MCP_SERVERS ? process.env.MCP_SERVERS.split(',') : []);
 
 const remoteTools: Record<string, McpTool> = {};
+const localToolsMap: Record<string, LocalTool> = {};
+localTools.forEach(t => (localToolsMap[t.name] = t));
+
+const HELP: Record<string, string> = {
+  models: 'list available Ollama models',
+  save: 'save chat history to disk',
+  load: 'load chat history from disk',
+  compact: 'summarize and reset the conversation',
+  read: 'show file contents',
+  write: 'write a file',
+  run: 'execute a shell command',
+  shell: 'run an interactive shell or command',
+  kill: 'terminate the last running command',
+  search: 'perform web search',
+  tree: 'show directory tree',
+  summary: 'show file and directory counts',
+  diff: 'view diff between two files',
+  patch: 'generate a patch against a file',
+  tools: 'list available tools',
+  call: 'invoke a tool',
+  help: 'show this help',
+  exit: 'quit the session'
+};
 async function initMcp() {
   for (const server of mcpServers) {
     try {
@@ -126,9 +150,13 @@ async function handleCommand(line: string) {
         console.log((await listModels(opts.host)).join('\n'));
         break;
       case 'tools':
-        if (Object.keys(remoteTools).length === 0) {
-          console.log('no MCP tools');
+        const locals = Object.values(localToolsMap);
+        if (locals.length === 0 && Object.keys(remoteTools).length === 0) {
+          console.log('no tools');
         } else {
+          for (const t of locals) {
+            console.log(`${t.name} - ${t.description}`);
+          }
           for (const t of Object.values(remoteTools)) {
             console.log(`${t.name} (${t.server})${t.description ? ' - ' + t.description : ''}`);
           }
@@ -136,15 +164,24 @@ async function handleCommand(line: string) {
         break;
       case 'call': {
         const [name, ...inputParts] = rest;
-        const tool = remoteTools[name];
-        if (!tool) {
-          console.log(`Unknown MCP tool: ${name}`);
+        const inputStr = inputParts.join(' ');
+        if (localToolsMap[name]) {
+          console.log(await localToolsMap[name].run(inputStr));
           break;
         }
-        const inputStr = inputParts.join(' ');
+        const tool = remoteTools[name];
+        if (!tool) {
+          console.log(`Unknown tool: ${name}`);
+          break;
+        }
         console.log(await callTool(tool, inputStr));
         break;
       }
+      case 'help':
+        for (const [c, d] of Object.entries(HELP)) {
+          console.log(`/${c} - ${d}`);
+        }
+        break;
       case 'save':
         await writeFile(arg || 'session.json', JSON.stringify(history, null, 2));
         console.log(`saved ${arg || 'session.json'}`);

@@ -49,6 +49,6 @@ export async function listModels(
   if (!res.ok) {
     throw new Error(`Ollama request failed: ${res.status}`);
   }
-  const data = await res.json();
+  const data: any = await res.json();
   return data.models?.map((m: any) => m.name) ?? [];
 }
