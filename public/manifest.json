@@ -1,0 +1,8 @@
+{
+  "name": "Offline OSM App",
+  "short_name": "OSM Offline",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "description": "Offline OpenStreetMap viewer"
+}

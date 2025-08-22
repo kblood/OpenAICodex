@@ -1,0 +1,14 @@
+{
+  "name": "offline-osm-app",
+  "version": "0.1.0",
+  "description": "Offline OpenStreetMap PWA with geofabrik download and tilemaker integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo 'No tests yet' && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
