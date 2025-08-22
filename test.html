@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenMaps Test</title>
+    <link href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        #map { width: 100%; height: 500px; margin: 20px 0; }
+        .controls { margin: 20px 0; }
+        button { margin: 5px; padding: 10px 15px; }
+        #output { background: #f5f5f5; padding: 10px; margin: 10px 0; min-height: 100px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>OpenMaps PBF Processor Test</h1>
+    
+    <div class="controls">
+        <input type="file" id="fileInput" accept=".pbf,.osm.pbf">
+        <button onclick="processFile()">Process PBF File</button>
+        <button onclick="testLoadFeatures()">Test Load Features</button>
+    </div>
+    
+    <div id="map"></div>
+    <div id="output">Ready to test...</div>
+
+    <script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+    <script src="public/browser-osm-processor.js"></script>
+    <script>
+        let map;
+        let processor;
+        
+        // Initialize map
+        function initMap() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: {
+                    version: 8,
+                    sources: {},
+                    layers: []
+                },
+                center: [10.0, 55.0], // Denmark center
+                zoom: 6
+            });
+            
+            map.on('load', () => {
+                log('Map loaded successfully');
+            });
+        }
+        
+        function log(message) {
+            const output = document.getElementById('output');
+            output.textContent += new Date().toISOString() + ': ' + message + '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // Process PBF file
+        async function processFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('Please select a PBF file first');
+                return;
+            }
+            
+            log('Processing file: ' + file.name);
+            
+            try {
+                // Create processor if not exists
+                if (!processor) {
+                    processor = new BrowserOSMProcessor();
+                }
+                
+                // Read file as ArrayBuffer
+                log('File selected, size: ' + file.size + ' bytes');
+                
+                // Process the PBF
+                const result = await processor.processPBFFile(file);
+                log('Processing complete!');
+                log('Features found: ' + (result.originalFeatures ? result.originalFeatures.length : 0));
+                log('Tiles generated: ' + Object.keys(result).filter(k => k !== 'originalFeatures').length);
+                
+                // Store globally for testing
+                window.browserGeneratedTiles = result;
+                
+                // Try to display features
+                if (result.originalFeatures && result.originalFeatures.length > 0) {
+                    displayFeatures(result.originalFeatures);
+                }
+                
+            } catch (error) {
+                log('Error: ' + error.message);
+                console.error(error);
+            }
+        }
+        
+        // Display features on map
+        function displayFeatures(features) {
+            log('Displaying ' + features.length + ' features on map');
+            
+            try {
+                // Remove existing source if present
+                if (map.getSource('test-data')) {
+                    map.removeSource('test-data');
+                }
+                
+                // Add source
+                map.addSource('test-data', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: features
+                    }
+                });
+                
+                // Add layers
+                addStyledLayers('test-data');
+                
+                // Fit to bounds
+                const bounds = new maplibregl.LngLatBounds();
+                features.forEach(feature => {
+                    if (feature.geometry.type === 'Point') {
+                        bounds.extend(feature.geometry.coordinates);
+                    } else if (feature.geometry.type === 'LineString') {
+                        feature.geometry.coordinates.forEach(coord => bounds.extend(coord));
+                    } else if (feature.geometry.type === 'Polygon') {
+                        feature.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
+                    }
+                });
+                
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds, { padding: 50 });
+                }
+                
+                log('Features displayed successfully');
+                
+            } catch (error) {
+                log('Error displaying features: ' + error.message);
+                console.error(error);
+            }
+        }
+        
+        // Add styled layers (same as in app.js)
+        function addStyledLayers(sourceId) {
+            // Add polygon layers
+            map.addLayer({
+                id: sourceId + '-polygons',
+                source: sourceId,
+                type: 'fill',
+                filter: ['==', ['geometry-type'], 'Polygon'],
+                paint: {
+                    'fill-color': [
+                        'case',
+                        ['has', 'building'], '#e8e8e8',
+                        ['==', ['get', 'natural'], 'water'], '#a8d0f0',
+                        ['==', ['get', 'landuse'], 'forest'], '#c8d9b8',
+                        ['==', ['get', 'landuse'], 'residential'], '#f2f1f0',
+                        ['==', ['get', 'landuse'], 'commercial'], '#f7f5f3',
+                        '#f0f0f0'
+                    ],
+                    'fill-opacity': 0.8
+                }
+            });
+
+            // Add roads
+            map.addLayer({
+                id: sourceId + '-roads',
+                source: sourceId,
+                type: 'line',
+                filter: ['==', ['geometry-type'], 'LineString'],
+                paint: {
+                    'line-color': [
+                        'case',
+                        ['==', ['get', 'highway'], 'motorway'], '#e67c73',
+                        ['==', ['get', 'highway'], 'trunk'], '#f6a192',
+                        ['==', ['get', 'highway'], 'primary'], '#f9bc9c',
+                        ['==', ['get', 'highway'], 'secondary'], '#ffd4a3',
+                        ['==', ['get', 'highway'], 'residential'], '#ffffff',
+                        ['==', ['get', 'railway'], 'rail'], '#888888',
+                        '#e8e8e8'
+                    ],
+                    'line-width': [
+                        'case',
+                        ['==', ['get', 'highway'], 'motorway'], 6,
+                        ['==', ['get', 'highway'], 'trunk'], 5,
+                        ['==', ['get', 'highway'], 'primary'], 4,
+                        ['==', ['get', 'highway'], 'secondary'], 3,
+                        ['==', ['get', 'highway'], 'residential'], 2,
+                        ['==', ['get', 'railway'], 'rail'], 2,
+                        1
+                    ],
+                    'line-opacity': 0.9
+                }
+            });
+
+            // Add points
+            map.addLayer({
+                id: sourceId + '-points',
+                source: sourceId,
+                type: 'circle',
+                filter: ['==', ['geometry-type'], 'Point'],
+                paint: {
+                    'circle-color': [
+                        'case',
+                        ['has', 'amenity'], '#4285f4',
+                        ['has', 'shop'], '#ea4335',
+                        ['has', 'tourism'], '#34a853',
+                        '#9aa0a6'
+                    ],
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        10, 2,
+                        15, 4,
+                        20, 6
+                    ],
+                    'circle-opacity': 0.8,
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': 1
+                }
+            });
+        }
+        
+        // Test loading features
+        function testLoadFeatures() {
+            if (!window.browserGeneratedTiles) {
+                log('No processed data available. Process a file first.');
+                return;
+            }
+            
+            if (window.browserGeneratedTiles.originalFeatures) {
+                displayFeatures(window.browserGeneratedTiles.originalFeatures);
+            } else {
+                log('No original features found in processed data');
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initMap();
+            log('Test page initialized');
+        });
+    </script>
+</body>
+</html>
